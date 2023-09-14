@@ -110,9 +110,9 @@ Visualizer::Visualizer(GLFWwindow* window)
 	auto settingsReadLine = [](ImGuiContext*, ImGuiSettingsHandler* handler, void* entry, const char* line)
 	{
 		Visualizer* vis = reinterpret_cast<Visualizer*>(handler->UserData);
-		char path[MAX_PATH];
+		char path[O_PATH];
 		int intValue = 0;
-		memset(path, 0, sizeof(char)*MAX_PATH);
+		memset(path, 0, sizeof(char)*O_PATH);
 		std::cout << "reading \"" << line << "\"" << std::endl;
 		if (sscanf(line, "VolumeDir=%s", path) == 1)
 			vis->volumeDirectory_ = insertWhitespace(std::string(path));
@@ -517,7 +517,7 @@ void Visualizer::loadVolume(const std::string& filename, float* progress)
 	{
 		errorCode = code;
 		std::cerr << msg << std::endl;
-		throw std::exception(msg.c_str());
+		throw std::logic_error(msg.c_str());
 	};
 	//load it locally
 	try {
@@ -1582,7 +1582,7 @@ void Visualizer::screenshot()
 	char time_str[128];
 	time_t now = time(0);
 	struct tm tstruct;
-	localtime_s(&tstruct, &now);
+	localtime_r(&now, &tstruct);
 	strftime(time_str, sizeof(time_str), "%Y%m%d-%H%M%S", &tstruct);
 
 	char output_name[512];

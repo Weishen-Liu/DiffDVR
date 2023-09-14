@@ -886,8 +886,10 @@ void TfTextureEditor::loadFromFile(const std::string& path, float& minDensity, f
 	file.close();
 
 	std::vector<float> opacities = json["opacities"];
+	std::vector<float> densityAxisOpacity = json["densityAxisOpacity"];
 	std::vector<float> densityAxisColor = json["densityAxisColor"];
 	std::vector<float3> colorAxis = json["colorAxis"];
+	std::vector<float3> opacityAxis = json["opacityAxis"];
 	minDensity = json["minDensity"];
 	maxDensity = json["maxDensity"];
 

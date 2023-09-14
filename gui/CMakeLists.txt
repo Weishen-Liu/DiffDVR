@@ -70,9 +70,13 @@ if (${RENDERER_BUILD_GUI})
 		${OPENGL_LIBRARY} 
 		${GLEW_SHARED_LIBRARY_RELEASE} 
 		${GLFW_LIBRARIES}
-		${TORCH_LIBRARIES})
+		${TORCH_LIBRARIES}
+		"/mnt/scratch/ssd/weishen/download/glfw/lib/libglfw3.a"
+		-lX11
+		"/mnt/scratch/ssd/weishen/miniconda3/envs/DiffDVR_weishen_gpu4_v1/lib/python3.8/site-packages/torch/lib/libtorch_cuda_cpp.so"
+	)
 	set_property(TARGET ${GUI_NAME} PROPERTY CXX_STANDARD 17)
-	set_property(TARGET ${GUI_NAME} PROPERTY CUDA_ARCHITECTURES 61 72)
+	set_property(TARGET ${GUI_NAME} PROPERTY CUDA_ARCHITECTURES ${DIFFDNR_CUDA_ARCHITECTURES})
 	add_custom_command(TARGET ${GUI_NAME}
 		POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/bin
@@ -105,5 +109,5 @@ if (${RENDERER_BUILD_GUI})
 	target_link_libraries(${GUI_NAME} ${GUI_NAME}::rc)
 	#set_property(TARGET ${GUI_NAME}-resources PROPERTY
 	#	MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-	set_property(TARGET ${GUI_NAME}-resources PROPERTY CUDA_ARCHITECTURES 61 72)
+	set_property(TARGET ${GUI_NAME}-resources PROPERTY CUDA_ARCHITECTURES ${DIFFDNR_CUDA_ARCHITECTURES})
 endif()

@@ -1,5 +1,8 @@
 
 import sys
+sys.path.append('/mnt/scratch/ssd/weishen/DiffDVR/bin')
+sys.path.append('../..')
+
 import os
 sys.path.insert(0, os.getcwd())
 
@@ -11,6 +14,7 @@ from matplotlib import gridspec
 from matplotlib.patches import Polygon
 import tqdm
 import imageio
+import json
 
 from diffdvr import Renderer, CameraOnASphere, Settings, setup_default_settings, \
     fibonacci_sphere, renderer_dtype_torch, renderer_dtype_np, ProfileRenderer, \
@@ -223,21 +227,45 @@ def tf_to_texture(tf : np.ndarray, out, figsize = (7,2), show_markers=False, out
     opacity /= max_opacity
     X = [0, 0] + list(np.arange(R) / R + 1 / (2 * R)) + [1, 1, 0]
     Y = [0, opacity[0]] + list(opacity) + [opacity[-1], 0, 0]
+    if out_format=='txt':
+        rgb_in_dict_list = []
+        entered_opacity = {-1}
+        for each_rgb in range(len(rgb[0])):
+            if opacity[each_rgb] == 0:
+                continue
+            if opacity[each_rgb] in entered_opacity:
+                continue
+            each_rgb_in_dict = {
+                "color" : {
+                    "b" : rgb[0][each_rgb][2],
+                    "g" : rgb[0][each_rgb][1],
+                    "r" : rgb[0][each_rgb][0]
+                },
+                "position" : list(np.arange(R) / R + 1 / (2 * R))[each_rgb]
+            }
+            rgb_in_dict_list.append(each_rgb_in_dict)
+            entered_opacity.add(list(np.arange(R) / R + 1 / (2 * R))[each_rgb])
+        rgb_in_dict_list.sort(key=lambda x: x["position"])
+        result = {
+            'result': rgb_in_dict_list
+        }
+        with open('/mnt/scratch/ssd/weishen/DiffDVR/pytests/results/tf/image_MechanicHand/comparison/data.json', 'w') as f:
+            f.write(str(result))
+    else:
+        # plot
+        fig = plt.figure(figsize=figsize)
+        ax = plt.gca()
+        line, = ax.plot(X[:-2], Y[:-2], 'ko-' if show_markers else 'k-')
+        clip_path = Polygon(np.stack([X, Y], axis=1), edgecolor='none', closed=True)
+        im = ax.imshow(rgb, aspect='auto', extent=[0, 1, 0, 1], origin='lower', zorder=line.get_zorder() - 1)
+        ax.add_patch(clip_path)
+        im.set_clip_path(clip_path)
 
-    # plot
-    fig = plt.figure(figsize=figsize)
-    ax = plt.gca()
-    line, = ax.plot(X[:-2], Y[:-2], 'ko-' if show_markers else 'k-')
-    clip_path = Polygon(np.stack([X, Y], axis=1), edgecolor='none', closed=True)
-    im = ax.imshow(rgb, aspect='auto', extent=[0, 1, 0, 1], origin='lower', zorder=line.get_zorder() - 1)
-    ax.add_patch(clip_path)
-    im.set_clip_path(clip_path)
-
-    plt.subplots_adjust(0, 0, 1, 1)
-    for s in ['top', 'right', 'bottom', 'left']:
-        ax.spines[s].set_visible(False)
-    plt.savefig(out, format=out_format, transparent=True)
-    plt.close(fig)
+        plt.subplots_adjust(0, 0, 1, 1)
+        for s in ['top', 'right', 'bottom', 'left']:
+            ax.spines[s].set_visible(False)
+        plt.savefig(out, format=out_format, transparent=True)
+        plt.close(fig)
 
 def load_settings(settings_file):
     print("Load settings", settings_file)
@@ -353,6 +381,8 @@ def visualize_smoothingPriors(settings_file, name):
             reference_tf = reference['tf']
             reference_image = render_with_tf(reference_tf)
             tf_to_texture(reference_tf, os.path.join(output_folder, "reference-tf.png"))
+            tf_to_texture(reference_tf, os.path.join(output_folder, "reference-tf.png"), out_format='txt')
+
             save_img(reference_image, "reference-img")
 
     Ypsnr = [None] * len(smoothness_priors)
@@ -635,6 +665,7 @@ def visualize_resolutions(settings_file, name, smoothness_prior, show_or_export:
     export_losses()
 
 def visualize_generalization(scenes: list, smoothness_prior: float, difference_scaling: float):
+    temp_local_ssim = 0
     for settings_file, name, human_name in scenes:
         print("Load results")
         folder = get_result_folder("tf/image_" + name + ("/smooth%05d" % int(smoothness_prior * 10000)))
@@ -682,11 +713,15 @@ def visualize_generalization(scenes: list, smoothness_prior: float, difference_s
         global_ssim = ssim(final_white, reference_white)
         global_psnr = psnr(final_white, reference_white)
 
-        local_ssim = toHWC(losses.ssim.SSIM(size_average="none")(
-            toCHW(final_white.unsqueeze(0)), toCHW(reference_white.unsqueeze(0)))).numpy()[0]
-        print("local ssim: min=%.5f, max=%.5f"%(np.min(local_ssim), np.max(local_ssim)))
-        print("local ssim shape:", local_ssim.shape)
-        save_img(local_ssim, "%s-image-ssim"%human_name)
+        try:
+            local_ssim = toHWC(losses.ssim.SSIM(size_average="none")(
+                toCHW(final_white.unsqueeze(0)), toCHW(reference_white.unsqueeze(0)))).numpy()[0]
+            print("local ssim: min=%.5f, max=%.5f"%(np.min(local_ssim), np.max(local_ssim)))
+            print("local ssim shape:", local_ssim.shape)
+            save_img(local_ssim, "%s-image-ssim"%human_name)
+        except:
+            pass
+        
 
         local_diff = np.clip(1 - difference_scaling * np.abs((final_white-reference_white).numpy()), 0.0, 1.0)
         save_img(local_diff, "%s-image-difference" % human_name)
@@ -700,37 +735,60 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam
 
     # Figure out the best smoothing prior (Figure 7)
-    compute("config-files/skull1b.json", "SkullSmoothing", 0.000, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 0.005, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 0.002, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 0.001, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 0.015, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 0.010, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 0.020, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 0.030, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 0.040, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 0.050, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 0.100, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 0.200, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 0.300, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 0.400, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 0.500, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 1.000, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 2.000, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 3.000, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 4.000, iterations, optimizer, False)
-    compute("config-files/skull1b.json", "SkullSmoothing", 5.000, iterations, optimizer, False)
-    visualize_smoothingPriors("config-files/skull1b.json", "SkullSmoothing")
+    # compute("config-files/skull1b.json", "SkullSmoothing", 0.000, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 0.005, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 0.002, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 0.001, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 0.015, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 0.010, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 0.020, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 0.030, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 0.040, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 0.050, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 0.100, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 0.200, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 0.300, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 0.400, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 0.500, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 1.000, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 2.000, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 3.000, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 4.000, iterations, optimizer, False)
+    # compute("config-files/skull1b.json", "SkullSmoothing", 5.000, iterations, optimizer, False)
+    # visualize_smoothingPriors("config-files/skull1b.json", "SkullSmoothing")
     best_smoothing_prior = 0.4
 
-    # Compare algorithms and evaluate resolution (Figure 8, Figure 1b)
-    compute("config-files/skull1b.json", "SkullAll", best_smoothing_prior, iterations, optimizer, all_renderer=True, Min_R=2)
-    visualize_resolutions("config-files/skull1b.json", "SkullAll", best_smoothing_prior, show_or_export="export")
+    # # Compare algorithms and evaluate resolution (Figure 8, Figure 1b)
+    # compute("config-files/skull1b.json", "SkullAll", best_smoothing_prior, iterations, optimizer, all_renderer=True, Min_R=2)
+    # visualize_resolutions("config-files/skull1b.json", "SkullAll", best_smoothing_prior, show_or_export="export")
 
-    # Generalization (Figure 9)
-    compute("config-files/thorax4pw.json", "Thorax4pw", best_smoothing_prior, iterations, optimizer, all_renderer=False, Min_R=6)
-    compute("config-files/plume123-linear-fancy2.json", "Plume123Fancy", best_smoothing_prior, iterations, optimizer, all_renderer=False, Min_R=6)
-    visualize_generalization([
-        ("config-files/thorax4pw.json", "Thorax4pw", "Thorax"),
-        ("config-files/plume123-linear-fancy.json", "Plume123Fancy", "Plume")
-    ], best_smoothing_prior, difference_scaling = 10)
+    # # Generalization (Figure 9)
+    # compute("config-files/thorax4pw.json", "Thorax4pw", best_smoothing_prior, iterations, optimizer, all_renderer=False, Min_R=6)
+    # compute("config-files/plume123-linear-fancy2.json", "Plume123Fancy", best_smoothing_prior, iterations, optimizer, all_renderer=False, Min_R=6)
+    # visualize_generalization([
+    #     ("config-files/thorax4pw.json", "Thorax4pw", "Thorax"),
+    #     ("config-files/plume123-linear-fancy2.json", "Plume123Fancy", "Plume")
+    # ], best_smoothing_prior, difference_scaling = 10)
+
+    compute("config-files/ovr_mechanic_hand.json", "MechanicHand", 0.000, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "MechanicHand", 0.010, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "MechanicHand", 0.020, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "MechanicHand", 0.030, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "MechanicHand", 0.040, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "MechanicHand", 0.050, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "MechanicHand", 0.100, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "MechanicHand", 0.200, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "MechanicHand", 0.300, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "MechanicHand", 0.400, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "MechanicHand", 0.500, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "MechanicHand", 1.000, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "MechanicHand", 2.000, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "MechanicHand", 3.000, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "MechanicHand", 4.000, iterations, optimizer, False)
+    # compute("config-files/ovr_mechanic_hand.json", "MechanicHand", 5.000, iterations, optimizer, False)
+
+
+
+    visualize_smoothingPriors("config-files/ovr_mechanic_hand.json", "MechanicHand")
+
+

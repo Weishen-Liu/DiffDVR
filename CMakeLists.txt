@@ -5,6 +5,9 @@ cmake_policy(SET CMP0074 NEW) # use _ROOT environment variables
 cmake_policy(SET CMP0091 NEW) # set runtime library
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
+set(DIFFDNR_CUDA_ARCHITECTURES 75)
+
+link_libraries("/mnt/scratch/ssd/weishen/miniconda3/envs/DiffDVR_weishen_gpu4_v1/lib/python3.8/site-packages/torch/lib/libtorch_cuda_cpp.so")
 
 ####################################
 # MAIN OPTIONS
@@ -26,13 +29,15 @@ OPTION(RENDERER_BUILD_CPU_KERNELS "Build CPU paths for the rendering kernels in 
 ####################################
 if(NOT ${RENDERER_ONLY_RESOURCES})
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 add_definitions(-DNOMINMAX)
 if (UNIX)
     link_libraries(stdc++fs)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif(UNIX)
 endif()
+
+add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 
 ####################################
 # CUDA
@@ -43,15 +48,16 @@ find_package(CUDA REQUIRED)
 if(COMMAND CUDA_SELECT_NVCC_ARCH_FLAGS)
 	if (WIN32) # inference-gui
 		CUDA_SELECT_NVCC_ARCH_FLAGS(ARCH_FLAGS Auto)
-        STRING(REPLACE ";" "=" ARCH_FLAGS2 "${ARCH_FLAGS}")
-        LIST(APPEND CUDA_NVCC_FLAGS "${ARCH_FLAGS2}")
-        message(STATUS "cuda flags: ${ARCH_FLAGS2}")
+                STRING(REPLACE ";" "=" ARCH_FLAGS2 "${ARCH_FLAGS}")
+                LIST(APPEND CUDA_NVCC_FLAGS "${ARCH_FLAGS2}")
+                message(STATUS "cuda flags: ${ARCH_FLAGS2}")
 	else() # server
-		CUDA_SELECT_NVCC_ARCH_FLAGS(ARCH_FLAGS 6.1)
-        LIST(APPEND CUDA_NVCC_FLAGS "-arch=compute_61 -code=sm_61")
+		CUDA_SELECT_NVCC_ARCH_FLAGS(ARCH_FLAGS 7.5)
+                LIST(APPEND CUDA_NVCC_FLAGS "-arch=compute_75")
+                LIST(APPEND CUDA_NVCC_FLAGS "-code=sm_75")
 	endif()
 endif()
-list(APPEND CUDA_NVCC_FLAGS "-std=c++17" "--use_fast_math" "--generate-line-info" "--expt-relaxed-constexpr" "--extended-lambda" "–Xptxas" "-v")
+list(APPEND CUDA_NVCC_FLAGS "-std=c++17" "--use_fast_math" "--generate-line-info" "--expt-relaxed-constexpr" "--extended-lambda" "-Xptxas" "-v")
 set(MY_CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS})
 set(CUDA_SEPARABLE_COMPILATION ON)
 message(STATUS "final cuda flags: ${MY_CUDA_NVCC_FLAGS}")
@@ -100,7 +106,7 @@ list(APPEND CMAKE_PREFIX_PATH ${TORCH_CONFIG_PATH})
 find_package(Torch REQUIRED)
 # get libraries (hard coded), copied from torch.utils.cpp_extension.CUDAExtension
 set(TORCH_LIBRARY_NAMES
-	c10 c10_cuda torch torch_cpu torch_cuda torch_python)
+	c10 c10_cuda torch torch_cpu torch_cuda torch_cuda_cpp torch_cuda_cu torch_cuda_linalg torch_python torch_global_deps)
 set(TORCH_LIBRARIES ${TORCH_LIBRARY})
 FOREACH(LIB_NAME ${TORCH_LIBRARY_NAMES})
   set(LIB_VAR "TORCH_LIB_${LIB_NAME}") # Name of the variable which stores result of the search
@@ -128,7 +134,7 @@ if (${RENDERER_BUILD_GUI})
     message(STATUS "Building with the GUI, searching for OpenGL")
     find_package(OpenGL REQUIRED)
     find_package(GLEW REQUIRED)
-    find_package(GLFW)
+    find_package(GLFW REQUIRED)
     # if glfw failed, check using PkgConfig
     if(NOT GLFW_FOUND)
         message(STATUS "GLFW could not be found with normal lookup, use PkgConfig instead")
@@ -158,7 +164,7 @@ endif()
 # THIRD PARTY
 ####################################
 add_subdirectory(third-party/lz4)
-set_property(TARGET lz4 PROPERTY CUDA_ARCHITECTURES 61 72)
+set_property(TARGET lz4 PROPERTY CUDA_ARCHITECTURES ${DIFFDNR_CUDA_ARCHITECTURES})
 
 ####################################
 # THE LIBRARY
@@ -180,7 +186,7 @@ cmrc_add_resource_library(
 	)
 #set_property(TARGET ${LIBRARY_NAME}-kernels PROPERTY
 #	    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-set_property(TARGET ${LIBRARY_NAME}-kernels PROPERTY CUDA_ARCHITECTURES 61 72)
+set_property(TARGET ${LIBRARY_NAME}-kernels PROPERTY CUDA_ARCHITECTURES ${DIFFDNR_CUDA_ARCHITECTURES})
 
 ####################################
 # TEST APPLICATION

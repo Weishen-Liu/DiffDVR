@@ -60,6 +60,10 @@ Volume::~Volume()
 }
 
 static const char MAGIC[] = "cvol";
+enum Flags {
+  Flag_Compressed = 1,
+  // more flags to be added in the future
+};
 enum DataTypeForIO
 {
 	TypeUChar,
@@ -69,6 +73,84 @@ enum DataTypeForIO
 };
 static int BytesPerType[DataTypeForIO::_TypeCount_] = {
 	1, 2, 4
+};
+
+class Feature;
+typedef std::shared_ptr<Feature> Feature_ptr;
+
+class Feature
+{
+public:
+  const std::string name_;
+  const DataTypeForIO type_;
+  const int numChannels_;
+  uint64_t sizeX;
+  uint64_t sizeY;
+  uint64_t sizeZ;
+  uint64_t nbytes;
+
+  std::unique_ptr<char[]> dataCpu_;
+
+  Feature(const std::string& name, DataTypeForIO type, int numChannels, uint64_t sizeX, uint64_t sizeY, uint64_t sizeZ) : name_(name), type_(type), numChannels_(numChannels)
+  {
+    this->sizeX = sizeX;
+    this->sizeY = sizeY;
+    this->sizeZ = sizeZ;
+
+    nbytes = numChannels * sizeX * sizeY * sizeZ * BytesPerType[type];
+    dataCpu_.reset(new char[nbytes]);
+  }
+
+  static std::shared_ptr<Feature> load(std::ifstream& s, LZ4Decompressor* compressor)
+  {
+    int lenName;
+    std::string name;
+    uint64_t sizeX, sizeY, sizeZ;
+    int channels;
+    int type;
+	std::cout<<"Here"<<std::endl;
+    s.read(reinterpret_cast<char*>(&lenName), 4);
+    name.resize(lenName);
+    s.read(name.data(), lenName);
+	std::cout<<"Here: "<< name <<std::endl;
+
+    s.read(reinterpret_cast<char*>(&sizeX), 8);
+    s.read(reinterpret_cast<char*>(&sizeY), 8);
+    s.read(reinterpret_cast<char*>(&sizeZ), 8);
+	std::cout << "sizeX " << sizeX << std::endl;
+	std::cout << "sizeY " << sizeY << std::endl;
+	std::cout << "sizeZ " << sizeZ << std::endl;
+
+    s.read(reinterpret_cast<char*>(&channels), 4);
+	std::cout << "channels " << channels << std::endl;
+
+    s.read(reinterpret_cast<char*>(&type), 4);
+	std::cout<<"Here: " << type <<std::endl;
+
+    Feature_ptr f = std::make_shared<Feature>(name, static_cast<DataTypeForIO>(type), channels, sizeX, sizeY, sizeZ);
+
+    auto& data = f->dataCpu_;
+    bool useCompression = compressor != nullptr;
+	std::cout<<"useCompression: "<<std::endl;
+    // body
+    if (useCompression) {
+      size_t dataToRead = BytesPerType[type] * sizeX * sizeY * sizeZ * channels;
+      for (size_t offset = 0; offset < dataToRead;) {
+        char* mem = data.get() + offset;
+        const int len = std::min(static_cast<int>(dataToRead - offset), std::numeric_limits<int>::max());
+        int chunkSize = compressor->decompress(mem, len, s);
+        offset += chunkSize;
+      }
+    }
+    else {
+      size_t dataToRead = BytesPerType[type] * sizeX * sizeY * channels;
+      for (int z = 0; z < sizeZ; ++z) {
+        s.read(data.get() + z * dataToRead, dataToRead);
+      }
+    }
+
+    return f;
+  }
 };
 
 /*
@@ -169,112 +251,176 @@ Volume::Volume(const std::string& filename,
 	assert(sizeof(double) == 8);
 	std::ifstream s(filename, std::fstream::binary);
 
-	//header
+	// //header
+	// char magic[4];
+	// s.read(magic, 4);
+	// if (memcmp(MAGIC, magic, 4) != 0)
+	// {
+	// 	error("Illegal magic number", -1);
+	// }
+	// size_t sizeX, sizeY, sizeZ;
+	// double voxelSizeX, voxelSizeY, voxelSizeZ;
+	// char useCompression;
+	// s.read(reinterpret_cast<char*>(&sizeX), 8);
+	// s.read(reinterpret_cast<char*>(&sizeY), 8);
+	// s.read(reinterpret_cast<char*>(&sizeZ), 8);
+	// s.read(reinterpret_cast<char*>(&voxelSizeX), 8);
+	// s.read(reinterpret_cast<char*>(&voxelSizeY), 8);
+	// s.read(reinterpret_cast<char*>(&voxelSizeZ), 8);
+	// int type;
+	// s.read(reinterpret_cast<char*>(&type), 4);
+	// s.read(&useCompression, 1);
+	// s.ignore(7);
+	// DataTypeForIO type_ = static_cast<DataTypeForIO>(type);
+	// if (sizeX * sizeY * sizeZ > std::numeric_limits<int>::max())
+	// 	throw std::runtime_error("Dataset is too big, must fit into an 32-bit signed int");
+
+	// //create level
+	// levels_.push_back(std::unique_ptr<MipmapLevel>(new MipmapLevel(this, sizeX, sizeY, sizeZ)));
+	// MipmapLevel* data = levels_[0].get();
+	// worldSizeX_ = voxelSizeX * sizeX;
+	// worldSizeY_ = voxelSizeY * sizeY;
+	// worldSizeZ_ = voxelSizeZ * sizeZ;
+
+	// //load first
+	// std::vector<char> rawData(BytesPerType[type] * sizeX * sizeY * sizeZ);
+	// progress(0.0f);
+	// if (useCompression) {
+	// 	LZ4Decompressor d;
+	// 	size_t dataToRead = BytesPerType[type_] * data->sizeX_ * data->sizeY_ * data->sizeZ_;
+	// 	for (size_t offset = 0; offset < dataToRead;)
+	// 	{
+	// 		char* mem = rawData.data() + offset;
+	// 		const int len = std::min(
+	// 			static_cast<int>(dataToRead - offset),
+	// 			std::numeric_limits<int>::max());
+	// 		int chunkSize = d.decompress(mem, len, s);
+	// 		progress(offset / float(dataToRead));
+	// 		offset += chunkSize;
+	// 	}
+	// }
+	// else
+	// {
+	// 	size_t dataToRead = BytesPerType[type_] * data->sizeX_ * data->sizeY_;
+	// 	for (int z = 0; z < data->sizeZ_; ++z)
+	// 	{
+	// 		s.read(rawData.data() + z * dataToRead, dataToRead);
+	// 		if (z % 10 == 0)
+	// 			progress(z / float(data->sizeZ_));
+	// 	}
+	// }
+
+	std::vector<Feature_ptr> features_;
+	// load new version
+    int version;
+    int numFeatures;
+    int flags;
 	char magic[4];
 	s.read(magic, 4);
-	if (memcmp(MAGIC, magic, 4) != 0)
-	{
-		error("Illegal magic number", -1);
-	}
-	size_t sizeX, sizeY, sizeZ;
-	double voxelSizeX, voxelSizeY, voxelSizeZ;
-	char useCompression;
-	s.read(reinterpret_cast<char*>(&sizeX), 8);
-	s.read(reinterpret_cast<char*>(&sizeY), 8);
-	s.read(reinterpret_cast<char*>(&sizeZ), 8);
-	s.read(reinterpret_cast<char*>(&voxelSizeX), 8);
-	s.read(reinterpret_cast<char*>(&voxelSizeY), 8);
-	s.read(reinterpret_cast<char*>(&voxelSizeZ), 8);
-	int type;
-	s.read(reinterpret_cast<char*>(&type), 4);
-	s.read(&useCompression, 1);
-	s.ignore(7);
-	DataTypeForIO type_ = static_cast<DataTypeForIO>(type);
-	if (sizeX * sizeY * sizeZ > std::numeric_limits<int>::max())
-		throw std::runtime_error("Dataset is too big, must fit into an 32-bit signed int");
+    s.read(reinterpret_cast<char*>(&version), 4);
+    s.read(reinterpret_cast<char*>(&worldSizeX_), 4);
+    s.read(reinterpret_cast<char*>(&worldSizeY_), 4);
+    s.read(reinterpret_cast<char*>(&worldSizeZ_), 4);
+    s.read(reinterpret_cast<char*>(&numFeatures), 4);
+    s.read(reinterpret_cast<char*>(&flags), 4);
+    s.ignore(4);
+    bool useCompression = (flags & Flag_Compressed) > 0;
 
-	//create level
-	levels_.push_back(std::unique_ptr<MipmapLevel>(new MipmapLevel(this, sizeX, sizeY, sizeZ)));
+    LZ4Decompressor d;
+    LZ4Decompressor* dPtr = useCompression ? &d : nullptr;
+
+    // load features
+    features_.resize(numFeatures);
+    const float progressStep = 1.0f / numFeatures;
+    for (int i = 0; i < numFeatures; ++i) {
+      std::cout << "Load feature " << std::to_string(i) << std::endl;
+      const auto f = Feature::load(s, dPtr);
+      features_[i] = f;
+    }
+
+	levels_.push_back(std::unique_ptr<MipmapLevel>(new MipmapLevel(this, features_[0]->sizeX, features_[0]->sizeY, features_[0]->sizeZ)));
 	MipmapLevel* data = levels_[0].get();
-	worldSizeX_ = voxelSizeX * sizeX;
-	worldSizeY_ = voxelSizeY * sizeY;
-	worldSizeZ_ = voxelSizeZ * sizeZ;
 
-	//load first
-	std::vector<char> rawData(BytesPerType[type] * sizeX * sizeY * sizeZ);
-	progress(0.0f);
-	if (useCompression) {
-		LZ4Decompressor d;
-		size_t dataToRead = BytesPerType[type_] * data->sizeX_ * data->sizeY_ * data->sizeZ_;
-		for (size_t offset = 0; offset < dataToRead;)
-		{
-			char* mem = rawData.data() + offset;
-			const int len = std::min(
-				static_cast<int>(dataToRead - offset),
-				std::numeric_limits<int>::max());
-			int chunkSize = d.decompress(mem, len, s);
-			progress(offset / float(dataToRead));
-			offset += chunkSize;
-		}
-	}
-	else
-	{
-		size_t dataToRead = BytesPerType[type_] * data->sizeX_ * data->sizeY_;
-		for (int z = 0; z < data->sizeZ_; ++z)
-		{
-			s.read(rawData.data() + z * dataToRead, dataToRead);
-			if (z % 10 == 0)
-				progress(z / float(data->sizeZ_));
-		}
-	}
+	std::cout << "done reading " << filename << std::endl;
+	std::cout << "# of features = " << features_.size() << std::endl;
+	std::cout << "worldSizeX_ " << worldSizeX_ << std::endl;
+	std::cout << "worldSizeY_ " << worldSizeY_ << std::endl;
+	std::cout << "worldSizeZ_ " << worldSizeZ_ << std::endl;
 
-	//convert
+	unsigned int current_pos = 0;
+	for (int i = 0; i < features_.size(); ++i) {
+		std::string fname = filename + "_" + std::to_string(i);
+		fname = fname.substr(fname.find_last_of("\\/") + 1);
+		std::replace(fname.begin(), fname.end(), '.', '_');
+		std::replace(fname.begin(), fname.end(), '-', '_');
+
+		fname += "_" + std::to_string(features_[i]->sizeX) + "x" + std::to_string(features_[i]->sizeY) + "x" + std::to_string(features_[i]->sizeZ);
+		switch (features_[i]->type_) {
+		case TypeUChar:  fname += "_uint8.raw";  break;
+		case TypeUShort: fname += "_uint16.raw"; break;
+		case TypeFloat:  fname += "_float.raw";  break;
+		default: throw std::runtime_error("wrong type");
+		}
+
+		std::cout << "saving " << fname << std::endl;
+		std::cout << "numchannels " << features_[i]->numChannels_ << std::endl;
+
+		// auto w = vidi::filemap_write_create(fname, features_[i]->nbytes);
+		// vidi::filemap_random_write(w, 0, features_[i]->dataCpu_.get(), features_[i]->nbytes);
+		// vidi::filemap_close(w);
+
+		float* data_ptr = data->dataCpuBlob_.data();
+		memcpy(data_ptr + current_pos, features_[i]->dataCpu_.get(), features_[i]->nbytes);
+		current_pos += features_[i]->nbytes;
+	}
 	
-	int sizeXYZ = static_cast<int>(sizeX * sizeY * sizeZ);
-#if USE_DOUBLE_PRECISION==0
-	float* data_ptr = data->dataCpuBlob_.data();
-	if (type_ == TypeFloat) {
-		memcpy(data_ptr, rawData.data(), sizeof(float) * sizeXYZ);
-	}
-	else if (type_ == TypeUChar)
-	{
-		const unsigned char* src = reinterpret_cast<const unsigned char*>(rawData.data());
-#pragma omp parallel for
-		for (int i = 0; i < sizeXYZ; ++i)
-			data_ptr[i] = src[i] / 255.0f;
-	}
-	else if (type_ == TypeUShort)
-	{
-		const unsigned short* src = reinterpret_cast<const unsigned short*>(rawData.data());
-#pragma omp parallel for
-		for (int i = 0; i < sizeXYZ; ++i)
-			data_ptr[i] = src[i] / 65535.0f;
-	}
-#else
-	double* data_ptr = data->dataCpuBlob_.data();
-	int sliceSize = data->sizeX_ * data->sizeY_;
-	if (type_ == TypeFloat)
-	{
-		const float* src = reinterpret_cast<const float*>(rawData.data());
-#pragma omp parallel for
-		for (int i = 0; i < sizeXYZ; ++i)
-			data_ptr[i] = src[i];
-	}
-	else if (type_ == TypeUChar)
-	{
-		const unsigned char* src = reinterpret_cast<const unsigned char*>(rawData.data());
-#pragma omp parallel for
-		for (int i = 0; i < sizeXYZ; ++i)
-			data_ptr[i] = src[i] / 255.0f;
-	}
-	else if (type_ == TypeUShort)
-	{
-		const unsigned short* src = reinterpret_cast<const unsigned short*>(rawData.data());
-#pragma omp parallel for
-		for (int i = 0; i < sizeXYZ; ++i)
-			data_ptr[i] = src[i] / 65535.0f;
-	}
-#endif
+// 	//convert
+	
+// 	int sizeXYZ = static_cast<int>(sizeX * sizeY * sizeZ);
+// #if USE_DOUBLE_PRECISION==0
+// 	float* data_ptr = data->dataCpuBlob_.data();
+// 	if (type_ == TypeFloat) {
+// 		memcpy(data_ptr, rawData.data(), sizeof(float) * sizeXYZ);
+// 	}
+// 	else if (type_ == TypeUChar)
+// 	{
+// 		const unsigned char* src = reinterpret_cast<const unsigned char*>(rawData.data());
+// #pragma omp parallel for
+// 		for (int i = 0; i < sizeXYZ; ++i)
+// 			data_ptr[i] = src[i] / 255.0f;
+// 	}
+// 	else if (type_ == TypeUShort)
+// 	{
+// 		const unsigned short* src = reinterpret_cast<const unsigned short*>(rawData.data());
+// #pragma omp parallel for
+// 		for (int i = 0; i < sizeXYZ; ++i)
+// 			data_ptr[i] = src[i] / 65535.0f;
+// 	}
+// #else
+// 	double* data_ptr = data->dataCpuBlob_.data();
+// 	int sliceSize = data->sizeX_ * data->sizeY_;
+// 	if (type_ == TypeFloat)
+// 	{
+// 		const float* src = reinterpret_cast<const float*>(rawData.data());
+// #pragma omp parallel for
+// 		for (int i = 0; i < sizeXYZ; ++i)
+// 			data_ptr[i] = src[i];
+// 	}
+// 	else if (type_ == TypeUChar)
+// 	{
+// 		const unsigned char* src = reinterpret_cast<const unsigned char*>(rawData.data());
+// #pragma omp parallel for
+// 		for (int i = 0; i < sizeXYZ; ++i)
+// 			data_ptr[i] = src[i] / 255.0f;
+// 	}
+// 	else if (type_ == TypeUShort)
+// 	{
+// 		const unsigned short* src = reinterpret_cast<const unsigned short*>(rawData.data());
+// #pragma omp parallel for
+// 		for (int i = 0; i < sizeXYZ; ++i)
+// 			data_ptr[i] = src[i] / 65535.0f;
+// 	}
+// #endif
 	progress(1.0f);
 }
 

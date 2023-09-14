@@ -111,6 +111,12 @@ class _RendererFunction(torch.autograd.Function):
         tensors_for_batches = [camera_matrix, camera_ray_start, camera_ray_dir, tf]
         if inputs.volume_filter_mode != pyrenderer.VolumeFilterMode.Preshaded:
             tensors_for_batches.append(volume)
+        print(camera_matrix)
+        for i in tensors_for_batches:
+            try:
+                print(i.shape)
+            except:
+                print(1)
         B = max([(1 if t is None else t.shape[0]) for t in tensors_for_batches])
         W = inputs.screen_size.x
         H = inputs.screen_size.y

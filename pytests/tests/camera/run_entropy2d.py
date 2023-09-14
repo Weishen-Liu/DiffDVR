@@ -1,3 +1,5 @@
+import sys; sys.path.append('/mnt/scratch/ssd/weishen/DiffDVR/bin')
+sys.path.append('../..')
 import numpy as np
 import torch
 import os
@@ -710,7 +712,7 @@ def run(settings_file, name, show_or_export, include_color_in_entropy, params=No
 
 
 if __name__ == '__main__':
-    run("../../config-files/tooth1.json", "Tooth-WColor", "export", True, hemisphere="light")
-    run("../../config-files/single_jet.json", "Jet", "export", False, {'lr':10, 'iterations':20, 'intermediate':10}, hemisphere="small")
-    run("../../config-files/c60multi-pw.json", "C60multi", "export", False, hemisphere="small")
-    run("../../config-files/plume100-linear.json", "plume100", "export", False, {'lr':10.0, 'iterations':20, 'intermediate':200}, hemisphere="small")
+    run("./config-files/tooth1.json", "Tooth-WColor", "export", True, hemisphere="light")
+    run("./config-files/single_jet.json", "Jet", "export", False, {'lr':10, 'iterations':20, 'intermediate':10}, hemisphere="small")
+    run("./config-files/c60multi-pw.json", "C60multi", "export", False, hemisphere="small")
+    run("./config-files/plume100-linear.json", "plume100", "export", False, {'lr':10.0, 'iterations':20, 'intermediate':200}, hemisphere="small")

@@ -1,3 +1,7 @@
+import sys
+sys.path.append('/mnt/scratch/ssd/weishen/DiffDVR/bin')
+sys.path.append('../..')
+
 import numpy as np
 import torch
 import os
@@ -320,5 +324,5 @@ def run(settings_file, name, show_or_export):
 
 
 if __name__ == '__main__':
-    run("../../config-files/tooth1.json", "Tooth", "export")
+    run("config-files/tooth1.json", "Tooth", "export")
     # run("../../config-files/single_jet.json", "Jet", "export")

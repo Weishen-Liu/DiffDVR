@@ -19,6 +19,8 @@
 # Additional modules
 include(FindPackageHandleStandardArgs)
 
+set(GLFW_ROOT_DIR "/mnt/scratch/ssd/weishen/download/glfw")
+
 if (WIN32)
 	# Find include files
 	find_path(
@@ -58,6 +60,8 @@ else()
 		/usr/local/include
 		/sw/include
 		/opt/local/include
+		${GLFW_ROOT_DIR}/include
+		/mnt/scratch/ssd/weishen/download/glfw/include
 		DOC "The directory where GL/glfw.h resides")
 
 	# Find library files
@@ -73,6 +77,8 @@ else()
 		/sw/lib
 		/opt/local/lib
 		${GLFW_ROOT_DIR}/lib
+		/mnt/scratch/ssd/weishen/download/glfw/lib
+		/mnt/scratch/ssd/weishen/download/glfw/lib/cmake
 		DOC "The GLFW library")
 endif()
 
