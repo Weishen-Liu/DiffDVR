@@ -1,17 +1,17 @@
 {
     "camera": {
-        "currentPitch": 11.5,
-        "currentYaw": 997.5,
+        "currentPitch": 5.0,
+        "currentYaw": 426.5,
         "fov": 45.0,
         "lookAt": [
-            0,
-            0.25,
-            1
+            0.0,
+            0.0,
+            0.0
         ],
-        "orientation": 3,
+        "orientation": 4,
         "rotateSpeed": 0.5,
         "zoomSpeed": 1.100000023841858,
-        "zoomValue": -2.0
+        "zoomValue": 4.0
     },
     "dataset": {
         "file": "/media/data/qadwu/volume/floats/mechhand_640x220x229_float32_raw_640x220x229_float.cvol",
@@ -26,31 +26,31 @@
     },
     "shading": {
         "ambientLight": [
-            0.10000000149011612,
-            0.10000000149011612,
-            0.10000000149011612
+            100.10000000149011612,
+            100000.10000000149011612,
+            100.10000000149011612
         ],
-        "aoStrength": 0.5,
+        "aoStrength": 1,
         "diffuseLight": [
-            0.800000011920929,
-            0.800000011920929,
-            0.800000011920929
+            100.0,
+            100.0,
+            100.0
         ],
         "lightDirection": [
             0.0,
             0.0,
-            1.0
+            0.0
         ],
         "materialColor": [
-            1.0,
-            1.0,
-            1.0
+            100.0,
+            100.0,
+            100.0
         ],
-        "specularExponent": 16.0,
+        "specularExponent": 0.0,
         "specularLight": [
-            0.10000000149011612,
-            0.10000000149011612,
-            0.10000000149011612
+            0.0,
+            0.0,
+            0.0
         ]
     },
     "tfEditor": {

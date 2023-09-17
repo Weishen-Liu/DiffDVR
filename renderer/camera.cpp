@@ -174,7 +174,7 @@ torch::Tensor Camera::viewportFromSphere(const torch::Tensor& center, const torc
 		torch::sin(pitch)* distance,
 		torch::cos(pitch) * torch::sin(yaw) * distance
 	};
-	//std::cout << "pos1: " << pos[0] << ", " << pos[1] << ", " << pos[2] << std::endl;
+	std::cout << "pos1: " << pos[0] << ", " << pos[1] << ", " << pos[2] << std::endl;
 	torch::Tensor pos2[3];
 	for (int i = 0; i < 3; ++i)
 	{
@@ -182,7 +182,7 @@ torch::Tensor Camera::viewportFromSphere(const torch::Tensor& center, const torc
 		pos2[i] = pos[std::abs(p) - 1] * (p > 0 ? 1 : -1);
 	}
 	auto origin = torch::cat({ pos2[0], pos2[1], pos2[2] }, 1);
-	//std::cout << "origin: " << origin << std::endl;
+	std::cout << "origin: " << origin << std::endl;
 
 	auto upVector = OrientationUp[orientation];
 	auto upVectorTorch = torch::tensor({ {upVector.x, upVector.y, upVector.z} },

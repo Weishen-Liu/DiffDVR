@@ -1,3 +1,8 @@
+'''
+Remember to activate the conda environment in GPU4
+Control input screenshots with EXTRACT_IMAGE_FROM_DIFFDVR_RENDERER and USE_SCREENSHOT_FROM_DIFFDVR_RENDERER
+Run: python3 tests/run_diff_render.py
+'''
 
 import sys
 sys.path.append('/mnt/scratch/ssd/weishen/DiffDVR/bin')
@@ -27,7 +32,7 @@ import losses.ssim
 from losses.lossbuilder import LossBuilder
 import pyrenderer
 
-EXTRACT_IMAGE_FROM_DIFFDVR_RENDERER = False
+EXTRACT_IMAGE_FROM_DIFFDVR_RENDERER = False # Save DiffDVR generate screenshots
 USE_SCREENSHOT_FROM_DIFFDVR_RENDERER = False # True for using DiffDvr Renderer; False for using self input
 
 def compute(settings_file, name, smoothness_prior,
@@ -103,7 +108,7 @@ def compute(settings_file, name, smoothness_prior,
 
     def load_image_as_input(image_folder_full_path):
         img_list = []
-        for i in range(8):
+        for i in range(NumViews):
             img = Image.open(image_folder_full_path + "/img" + str(i) + ".png")
             convert_tensor = transforms.ToTensor()
             single_image = convert_tensor(img)
@@ -145,7 +150,8 @@ def compute(settings_file, name, smoothness_prior,
         if USE_SCREENSHOT_FROM_DIFFDVR_RENDERER:
             img_list = load_image_as_input("/mnt/scratch/ssd/weishen/DiffDVR/pytests/tests/from_diffdvr_mechanic_hand_img")
         else:
-            img_list = load_image_as_input("/mnt/scratch/ssd/weishen/DiffDVR/pytests/tests/from_ovr_mechanic_hand_img")
+            img_list = load_image_as_input("/mnt/scratch/ssd/weishen/DiffDVR/pytests/tests/from_self_input_mechanic_hand_img")
+
         reference_images = torch.concat(
             (
                 img_list[0],
@@ -833,16 +839,13 @@ if __name__ == '__main__':
     #     ("config-files/plume123-linear-fancy2.json", "Plume123Fancy", "Plume")
     # ], best_smoothing_prior, difference_scaling = 10)
 
-    EXTRACT_IMAGE_FROM_DIFFDVR_RENDERER = True
-    USE_SCREENSHOT_FROM_DIFFDVR_RENDERER = False
-
     compute("config-files/ovr_mechanic_hand.json", "DiffRenderMechanicHand", 0.000, iterations, optimizer, False)
     compute("config-files/ovr_mechanic_hand.json", "DiffRenderMechanicHand", 0.010, iterations, optimizer, False)
     compute("config-files/ovr_mechanic_hand.json", "DiffRenderMechanicHand", 0.020, iterations, optimizer, False)
-    # compute("config-files/ovr_mechanic_hand.json", "DiffRenderMechanicHand", 0.030, iterations, optimizer, False)
-    # compute("config-files/ovr_mechanic_hand.json", "DiffRenderMechanicHand", 0.040, iterations, optimizer, False)
-    # compute("config-files/ovr_mechanic_hand.json", "DiffRenderMechanicHand", 0.050, iterations, optimizer, False)
-    # compute("config-files/ovr_mechanic_hand.json", "DiffRenderMechanicHand", 0.100, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "DiffRenderMechanicHand", 0.030, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "DiffRenderMechanicHand", 0.040, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "DiffRenderMechanicHand", 0.050, iterations, optimizer, False)
+    compute("config-files/ovr_mechanic_hand.json", "DiffRenderMechanicHand", 0.100, iterations, optimizer, False)
     # compute("config-files/ovr_mechanic_hand.json", "DiffRenderMechanicHand", 0.200, iterations, optimizer, False)
     # compute("config-files/ovr_mechanic_hand.json", "DiffRenderMechanicHand", 0.300, iterations, optimizer, False)
     # compute("config-files/ovr_mechanic_hand.json", "DiffRenderMechanicHand", 0.400, iterations, optimizer, False)
